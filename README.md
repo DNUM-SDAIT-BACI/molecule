@@ -175,6 +175,7 @@ source python3-virtualenv/bin/activate
 pip install --upgrade pip
 # installation de molecule dans le venv
 pip install molecule
+pip install docker
 ```
 
 
@@ -299,6 +300,7 @@ driver:
 platforms:
   - name: instance
     image: docker.io/pycontribs/centos:7
+    #image: docker.io/pycontribs/centos:8 # fonctionnel aussi
     command: /sbin/init
     privileged: True # donne tous les droits à docker
     pre_build_image: true
