@@ -2,7 +2,41 @@
 
 > Cet environnement permet d'effectuer des tests de roles ansible dans divers environnements: centos/ubuntu via vagrant/docker
 
+## Preconf de la Centos 7/8
+
+Mettre en place un compte avec lequel les tests seront déroulés
+
+- Créer l'utilisateur avec lequel les tests seront effectués (en root)
+
+```bash
+# ajouter l'user deploy ou autre, peu importe, débrouille toi!
+adduser deploy
+```
+
+- Editer le sudoers /etc/sudoers (en root)
+
+```bash
+# See sudoers(5) for more information on "#include" directives:
+deploy  ALL=(ALL:ALL) NOPASSWD:ALL
+```
+
+- Ajouter les paquets suivants
+
+```bash
+sudo yum install vim
+```
+
+- Disable le firewall (notamment pour la centos8) pour que docker fonctionne
+
+```bash
+sudo systemctl disable firewalld
+```
+
+
+
 ## CENTOS7 amuses toi bien omg!
+
+Si ansible est installé par défaut, mais ceci est inutile sur la CI
 
 ```bash
 # décommenter les lignes suivantes du fichier /etc/ansible/ansible.cfg
@@ -10,34 +44,68 @@ host_key_checking = False
 retry_files_enabled = False
 ```
 
-## Installation de gitlab
-
-https://www.howtoforge.com/tutorial/how-to-install-and-configure-gitlab-on-ubuntu-1804/
-
-
 ## Installation de docker
+
+- Installation sous CENTOS 7
 
 ```bash
 # installer et start docker
 sudo yum install docker
-systemctl enable docker
-systemctl start docker
+sudo systemctl enable docker
+sudo systemctl start docker
+```
 
-# autoriser les user dans le group dockerroot
-vim /etc/docker/daemon.json
+- Installation sous CENTOS 8
+
+```bash
+# Ajout du repo docker-ce
+sudo dnf config-manager --add-repo=https://download.docker.com/linux/centos/docker-ce.repo
+# checker si le paquet est disponible
+sudo dnf list docker-ce
+# installer la dernière version de docker
+sudo dnf install docker-ce --nobest -y
+# Concernant un problème de dépendances des centos8, installer le paquet container
+sudo dnf install https://download.docker.com/linux/centos/7/x86_64/stable/Packages/containerd.io-1.2.6-3.3.el7.x86_64.rpm
+# enable/start docker
+sudo systemctl enable docker
+sudo systemctl start docker
+```
+
+- Configuration pour CENTOS 7
+
+```bash
+# Editer/Créer le fichier /etc/docker/daemon.json
+# autoriser les user dans le group dockerroot 
 {
     "live-restore": true,
     "group": "dockerroot"
 }
 
-# ajout du user deploy dans le group dockerroot
+# Ajout du user deploy dans le group dockerroot
 sudo usermod -aG dockerroot deploy
 
-# redemarrer docker
+# Redemarrer docker
 systemctl restart docker
 ```
 
-## Installation de vagrant & virtualbox sur centos7 (servira a molecule)
+- Configuration pour CENTOS 8
+
+```bash
+# Editer/Créer le fichier /etc/docker/daemon.json
+# autoriser les user dans le group docker
+{
+    "live-restore": true,
+    "group": "docker"
+}
+
+# Ajout du user deploy dans le group docker
+sudo usermod -aG docker deploy
+
+# Redemarrer docker
+systemctl restart docker
+```
+
+## Installation de vagrant & virtualbox sur centos7 (servira a molecule): NE PAS FAIRE
 
 ```bash
 # installation de vbox https://linuxize.com/post/how-to-install-virtualbox-on-centos-7/
@@ -71,6 +139,8 @@ vagrant box add --name <name of the box> --box-version <version of the box> <dow
 
 ## Installation de molecule
 
+- Installation sous `CENTOS 7`
+
 ```bash
 # bonne méthode!!!
 sudo yum install epel-release
@@ -88,6 +158,28 @@ pip install docker # pour avoir le plugin docker
 pip install python-vagrant # pour avoir le plugin vagrant
 molecule --version
 ```
+
+- Installation sous `CENTOS 8`
+
+```bash
+# installation des paquets de base
+sudo dnf update && sudo reboot
+sudo dnf install gcc python3-pip python3-devel openssl-devel libffi-devel git
+# Creation d'un venv sous le compte user deploy
+# creation du home du venv
+cd ~
+python3 -m venv python3-virtualenv
+# Activation du venv
+source python3-virtualenv/bin/activate
+# Maj de pip dans le venv
+pip install --upgrade pip
+# installation de molecule dans le venv
+pip install molecule
+```
+
+
+
+
 
 ## Test de molecule
 
@@ -131,12 +223,14 @@ molecule init role foo --template path
 
 # creer un scenario avec vagrant (il servent a tester un role dans différents environnements):
 cd squid_vagrant
-molecule init scenario -r squid_vagrant --driver-name vagrant toto
+molecule init scenario -r install_squid --driver-name vagrant squid_vagrant
 ```
 
-## Configurer un role avec vagrant from scratch
+## Configurer un role avec vagrant from scratch (useless)
 
 > prerequis: avoir un environnement vagrant fonctionnel
+
+> pour les images rhel8, https://access.redhat.com/articles/4238681
 
 - Creer le nouveau role via molecule
 
@@ -186,8 +280,73 @@ verifier:
 
 A vous de voir... ajouter des tasks tout ça tout ça
 
-- Effectuer le test du role
+- Effectuer le test du role 
 
 ```bash
 molecule test
 ```
+
+## Configurer un role avec docker from scratch
+
+- Executer un role dans un conteneur docker et utiliser systemd, editer le fichier molecule/default/molecule.yml
+
+```yml
+---
+dependency:
+  name: galaxy
+driver:
+  name: docker
+platforms:
+  - name: instance
+    image: docker.io/pycontribs/centos:7
+    command: /sbin/init
+    privileged: True # donne tous les droits à docker
+    pre_build_image: true
+provisioner:
+  name: ansible
+verifier:
+  name: ansible # celui à utiliser par defaut, meme s'il existe testinfra
+  ```
+
+- Configurations specifique docker
+
+https://molecule.readthedocs.io/en/latest/configuration.html#docker
+
+- Jouer un scenario dans un role
+
+```bash
+molecule create|test|... --scenario-name foo
+```
+
+- Ajouter des requirements à un role
+
+```yml
+# from galaxy
+- name: yatesr.timezone
+
+# from GitHub
+- src: https://github.com/bennojoy/nginx
+
+# from GitHub, overriding the name and specifying a specific tag
+- name: nginx_role
+  src: https://github.com/bennojoy/nginx
+  version: master
+
+# from a webserver, where the role is packaged in a tar.gz
+- name: http-role-gz
+  src: https://some.webserver.example.com/files/master.tar.gz
+
+# from a webserver, where the role is packaged in a tar.bz2
+- name: http-role-bz2
+  src: https://some.webserver.example.com/files/master.tar.bz2
+
+# from a webserver, where the role is packaged in a tar.xz (Python 3.x only)
+- name: http-role-xz
+  src: https://some.webserver.example.com/files/master.tar.xz
+
+# from GitLab or other git-based scm, using git+ssh
+- src: git@gitlab.company.com:mygroup/ansible-base.git
+  scm: git
+```
+
+
