@@ -133,9 +133,7 @@ vagrant init centos7
 vagrant up
 # Once you have downloaded the file, you need to add the box to your vagrant config:
 vagrant box add --name <name of the box> --box-version <version of the box> <downloaded box file>
-
 ```
-
 
 ## Installation de molecule
 
@@ -178,12 +176,7 @@ pip install molecule
 pip install docker
 ```
 
-
-
-
-
 ## Test de molecule
-
 
 ```bash
 # creer un role
