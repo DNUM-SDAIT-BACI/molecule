@@ -1,0 +1,11 @@
+---
+
+- name: Install requirements
+  yum:
+    name: "{{ molecule_centos_packages }}"
+  when: ansible_distribution|lower == "centos" or ansible_os_familly|lower == "centos"
+
+- name: Install molecule
+  pip:
+    name: molecule[lint]
+    executable: pip3
