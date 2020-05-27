@@ -1,0 +1,8 @@
+---
+
+molecule_centos_packages:
+  - gcc
+  - python3-pip
+  - python3-devel
+  - openssl-devel
+  - python3-libselinux

@@ -1,0 +1,10 @@
+---
+# tasks file for molecule
+
+- name: Include distribution dependent variables
+  include_vars: "{{ item }}"
+  with_first_found:
+    - "{{ ansible_distribution | lower }}.yml"
+    - "{{ ansible_os_familly | lower }}.yml"
+
+- include_tasks: install.yml
